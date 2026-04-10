@@ -33,23 +33,44 @@ export function isAuthenticated() {
   const token = readToken();
   if (!token) return false;
   const now = Math.floor(Date.now() / 1000);
-  return token.exp && token.exp > now;
+  if (token.exp) return token.exp > now;
+  return true;
+}
+
+async function parseJsonResponse(res) {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text.slice(0, 200) };
+  }
 }
 
 // --- authenticateUser: POST /login, stores token on success ------------------
 export async function authenticateUser(user, password) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login`, {
-    method: "POST",
-    body: JSON.stringify({ userName: user, password: password }),
-    headers: { "Content-Type": "application/json" },
-  });
-  const data = await res.json();
-  if (res.status === 200) {
+  const base = process.env.NEXT_PUBLIC_API_URL;
+  if (!base) {
+    throw new Error("NEXT_PUBLIC_API_URL is not set. Check my-app .env / .env.local");
+  }
+  let res;
+  try {
+    res = await fetch(`${base}/login`, {
+      method: "POST",
+      body: JSON.stringify({ userName: user, password: password }),
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    throw new Error(
+      "Cannot reach the User API. Start it with: cd user-api && npm start (port 8080), or set NEXT_PUBLIC_API_URL to your deployed API."
+    );
+  }
+  const data = await parseJsonResponse(res);
+  if (res.status === 200 && data.token) {
     setToken(data.token);
     return true;
-  } else {
-    throw new Error(data.message);
   }
+  throw new Error(data.message || "Login failed");
 }
 
 // --- registerUser: POST /register, does NOT store token ----------------------
@@ -58,15 +79,25 @@ export async function authenticateUser(user, password) {
 //   - also sends password2 in request body
 //   - does NOT call setToken() on success - just returns true
 export async function registerUser(user, password, password2) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/register`, {
-    method: "POST",
-    body: JSON.stringify({ userName: user, password: password, password2: password2 }),
-    headers: { "Content-Type": "application/json" },
-  });
-  const data = await res.json();
+  const base = process.env.NEXT_PUBLIC_API_URL;
+  if (!base) {
+    throw new Error("NEXT_PUBLIC_API_URL is not set. Check my-app .env / .env.local");
+  }
+  let res;
+  try {
+    res = await fetch(`${base}/register`, {
+      method: "POST",
+      body: JSON.stringify({ userName: user, password: password, password2: password2 }),
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    throw new Error(
+      "Cannot reach the User API. Start it with: cd user-api && npm start (port 8080), or set NEXT_PUBLIC_API_URL to your deployed API."
+    );
+  }
+  const data = await parseJsonResponse(res);
   if (res.status === 200) {
     return true;
-  } else {
-    throw new Error(data.message);
   }
+  throw new Error(data.message || "Registration failed");
 }

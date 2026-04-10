@@ -7,10 +7,12 @@ import { readToken, removeToken } from "@/lib/authenticate";
 export default function MainNav() {
   const router = useRouter();
 
-  // Read token only on client to avoid hydration mismatch
+  // Token + mounted: server and first client paint must match (no Dropdown until mounted).
+  const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState(null);
 
   useEffect(() => {
+    setMounted(true);
     setToken(readToken());
   }, [router.asPath]);
 
@@ -40,17 +42,14 @@ export default function MainNav() {
             </Nav.Link>
           </Nav>
 
-          {/* Shown ONLY when token exists (user logged in) */}
-          {token && (
+          {/* After mount only — avoids React-Bootstrap Dropdown SSR/client HTML mismatch */}
+          {mounted && token && (
             <Nav>
-              {/* title set to token.userName per spec */}
               <NavDropdown title={token.userName} id="user-nav-dropdown" align="end">
-                {/* Favourites moved here as NavDropdown.Item */}
                 <NavDropdown.Item as={Link} href="/favourites">
                   Favourites
                 </NavDropdown.Item>
                 <NavDropdown.Divider />
-                {/* Logout invokes logout() */}
                 <NavDropdown.Item onClick={logout}>
                   Logout
                 </NavDropdown.Item>
@@ -58,8 +57,7 @@ export default function MainNav() {
             </Nav>
           )}
 
-          {/* Shown ONLY when there is NO token (user not logged in) */}
-          {!token && (
+          {mounted && !token && (
             <Nav>
               <Nav.Link as={Link} href="/register">
                 Register
