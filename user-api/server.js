@@ -100,14 +100,24 @@ app.delete(
   }
 );
 
-userService
-  .connect()
-  .then(() => {
-    app.listen(HTTP_PORT, () => {
-      console.log("API listening on: " + HTTP_PORT);
+// Vercel (@vercel/node) expects the Express app to be exported — it does not use app.listen().
+// Local dev: connect to MongoDB then listen on PORT.
+if (require.main === module) {
+  userService
+    .connect()
+    .then(() => {
+      app.listen(HTTP_PORT, () => {
+        console.log("API listening on: " + HTTP_PORT);
+      });
+    })
+    .catch((err) => {
+      console.log("unable to start the server: " + err);
+      process.exit();
     });
-  })
-  .catch((err) => {
-    console.log("unable to start the server: " + err);
-    process.exit();
+} else {
+  userService.connect().catch((err) => {
+    console.log("unable to connect to MongoDB: " + err);
   });
+}
+
+module.exports = app;
