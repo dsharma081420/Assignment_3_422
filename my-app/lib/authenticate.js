@@ -1,4 +1,5 @@
 import { jwtDecode } from "jwt-decode";
+import { getApiBase } from "@/lib/apiBase";
 
 // --- Token Helpers (same as course notes) ------------------------------------
 
@@ -47,40 +48,26 @@ async function parseJsonResponse(res) {
   }
 }
 
-function assertPublicApiUrl(base) {
-  if (typeof window === "undefined") return;
-  const h = window.location.hostname;
-  if (h === "localhost" || h === "127.0.0.1") return;
-  if (!base) {
-    throw new Error(
-      "NEXT_PUBLIC_API_URL is missing on this deployment. In Vercel → my-app project → Settings → Environment Variables, add NEXT_PUBLIC_API_URL=https://YOUR-USER-API.vercel.app/api/user for Production, then Redeploy."
-    );
-  }
-  if (base.includes("localhost")) {
-    throw new Error(
-      "NEXT_PUBLIC_API_URL points to localhost, but you are on the deployed site. Set it in Vercel to your User API: https://YOUR-USER-API.vercel.app/api/user (Production + Preview), then Redeploy."
-    );
-  }
-  if (base.includes("your-user-api") || base.includes("your-api")) {
-    throw new Error(
-      "NEXT_PUBLIC_API_URL is still a placeholder. Set it in Vercel to your real User API URL ending in /api/user, then Redeploy."
-    );
-  }
+function proxyNotConfiguredMessage() {
+  return new Error(
+    "User API proxy is not configured. On Vercel → my-app project → Settings → Environment Variables, set NEXT_PUBLIC_API_URL (or USER_API_URL) to https://YOUR-USER-API.vercel.app/api/user for Production, then Redeploy."
+  );
 }
 
 function unreachableApiMessage() {
   return new Error(
-    "Cannot reach the User API. If you are on Vercel: confirm NEXT_PUBLIC_API_URL is your deployed API (https://....vercel.app/api/user) and the User API project is deployed. If you are local: run cd user-api && npm start on port 8080."
+    "Cannot reach the User API. Local: run cd user-api && npm start (port 8080). Vercel: set NEXT_PUBLIC_API_URL or USER_API_URL on the my-app project and ensure the User API deployment is live."
   );
 }
 
 // --- authenticateUser: POST /login, stores token on success ------------------
 export async function authenticateUser(user, password) {
-  const base = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const base = getApiBase();
   if (!base) {
-    throw new Error("NEXT_PUBLIC_API_URL is not set. For local dev create my-app/.env.local with http://localhost:8080/api/user. On Vercel, set it in Project Settings and Redeploy.");
+    throw new Error(
+      "API base URL is empty. Add my-app/.env.local with NEXT_PUBLIC_API_URL=http://localhost:8080/api/user for local dev."
+    );
   }
-  assertPublicApiUrl(base);
   let res;
   try {
     res = await fetch(`${base}/login`, {
@@ -91,6 +78,9 @@ export async function authenticateUser(user, password) {
   } catch {
     throw unreachableApiMessage();
   }
+  if (res.status === 404 && base.includes("/api/user-proxy")) {
+    throw proxyNotConfiguredMessage();
+  }
   const data = await parseJsonResponse(res);
   if (res.status === 200 && data.token) {
     setToken(data.token);
@@ -100,16 +90,13 @@ export async function authenticateUser(user, password) {
 }
 
 // --- registerUser: POST /register, does NOT store token ----------------------
-// Differences vs authenticateUser:
-//   - hits /register instead of /login
-//   - also sends password2 in request body
-//   - does NOT call setToken() on success - just returns true
 export async function registerUser(user, password, password2) {
-  const base = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const base = getApiBase();
   if (!base) {
-    throw new Error("NEXT_PUBLIC_API_URL is not set. For local dev create my-app/.env.local with http://localhost:8080/api/user. On Vercel, set it in Project Settings and Redeploy.");
+    throw new Error(
+      "API base URL is empty. Add my-app/.env.local with NEXT_PUBLIC_API_URL=http://localhost:8080/api/user for local dev."
+    );
   }
-  assertPublicApiUrl(base);
   let res;
   try {
     res = await fetch(`${base}/register`, {
@@ -119,6 +106,9 @@ export async function registerUser(user, password, password2) {
     });
   } catch {
     throw unreachableApiMessage();
+  }
+  if (res.status === 404 && base.includes("/api/user-proxy")) {
+    throw proxyNotConfiguredMessage();
   }
   const data = await parseJsonResponse(res);
   if (res.status === 200) {
