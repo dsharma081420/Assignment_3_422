@@ -41,6 +41,21 @@ const strategy = new JwtStrategy(jwtOptions, function (jwt_payload, next) {
 passport.use(strategy);
 app.use(passport.initialize());
 
+// Root — browsers hitting the deployment URL see this instead of "Cannot GET /"
+app.get("/", (req, res) => {
+  res.json({
+    message: "WEB422 User API is running",
+    base: "/api/user",
+    routes: {
+      register: "POST /api/user/register",
+      login: "POST /api/user/login",
+      favourites: "GET /api/user/favourites (Authorization: JWT <token>)",
+      addFavourite: "PUT /api/user/favourites/:id (Authorization: JWT <token>)",
+      removeFavourite: "DELETE /api/user/favourites/:id (Authorization: JWT <token>)",
+    },
+  });
+});
+
 // POST /api/user/register
 app.post("/api/user/register", (req, res) => {
   userService
